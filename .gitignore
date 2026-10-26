@@ -1,0 +1,28 @@
+# .NET / Visual Studio
+[Bb]in/
+[Oo]bj/
+**/bin/
+**/obj/
+*.user
+*.suo
+.vs/
+
+# 构建和发布产物（安装包通过 GitHub Releases 分发）
+dist/
+installer/*.exe
+artifacts/
+
+# 本地工具与依赖（不要上传）
+tools/
+*.zip
+
+# 本地测试输出与临时文件
+*.tmp
+*.log
+TestResults/
+
+# 操作系统与编辑器
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
