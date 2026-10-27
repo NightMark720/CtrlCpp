@@ -14,6 +14,7 @@
         BorderThickness="1"
         BorderBrush="#303030"
         FontFamily="Segoe UI Variable Display, Segoe UI"
+        MouseLeftButtonDown="OnDragAreaMouseLeftButtonDown"
         Left="-32000" Top="-32000">
 
     <Window.Resources>
@@ -46,44 +47,58 @@
         </Style>
 
         <DataTemplate x:Key="ItemTemplate">
-            <Border Height="110" Padding="15,16" Background="Transparent">
+            <Border Height="{Binding CardHeight}" Background="Transparent">
                 <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="78"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <!-- 图标方块 78×78 圆角10 #181818 -->
-                    <Border Width="78" Height="78" CornerRadius="10" Background="#181818"
-                            VerticalAlignment="Center" HorizontalAlignment="Left">
-                        <Grid>
-                            <!-- 设计稿矢量文档图标（文字/链接） -->
-                            <Path Data="M19,34 C19,25.716 25.716,19 34,19 H57 C58.105,19 59,19.895 59,21 V44 C59,52.284 52.284,59 44,59 H22 C20.343,59 19,57.657 19,56 V34 Z"
-                                  Fill="#D9D9D9"
-                                  Visibility="{Binding DocIconVisibility}"/>
-                            <Path Data="M30,28 H49 M30,31 H49 M30,34 H49 M30,37 H49 M30,40 H49 M30,43 H49 M30,46 H49 M30,49 H49 M30,52 H49"
-                                  Stroke="#699BF7" StrokeThickness="1"
-                                  Visibility="{Binding DocIconVisibility}"/>
-                            <!-- 图片/文件暂用系统图标 -->
-                            <TextBlock Text="{Binding KindGlyph}"
-                                       FontFamily="Segoe MDL2 Assets" FontSize="28"
-                                       Foreground="#FFFFFF"
-                                       Visibility="{Binding GlyphVisibility}"
+                    <Grid Visibility="{Binding StandardItemVisibility}" Margin="15,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="78"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- 图标方块 78×78 圆角10 #181818 -->
+                        <Border Width="78" Height="78" CornerRadius="10" Background="#181818"
+                                Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                            <Grid>
+                                <!-- 设计稿矢量文档图标（文字/链接） -->
+                                <Path Data="M19,34 C19,25.716 25.716,19 34,19 H57 C58.105,19 59,19.895 59,21 V44 C59,52.284 52.284,59 44,59 H22 C20.343,59 19,57.657 19,56 V34 Z"
+                                      Fill="#D9D9D9"
+                                      Visibility="{Binding DocIconVisibility}"/>
+                                <Path Data="M30,28 H49 M30,31 H49 M30,34 H49 M30,37 H49 M30,40 H49 M30,43 H49 M30,46 H49 M30,49 H49 M30,52 H49"
+                                      Stroke="#699BF7" StrokeThickness="1"
+                                      Visibility="{Binding DocIconVisibility}"/>
+                                <TextBlock Text="{Binding KindGlyph}"
+                                           FontFamily="Segoe MDL2 Assets" FontSize="28"
+                                           Foreground="#FFFFFF"
+                                           Visibility="{Binding GlyphVisibility}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Image Source="{Binding FileIcon}" Stretch="Uniform" Margin="18"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="6"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Image Source="{Binding FileIcon}" Stretch="Uniform" Margin="18"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
-                    </Border>
-                    <StackPanel Grid.Column="1" Margin="17,0,4,0" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding PreviewText}"
-                                   FontSize="14" Foreground="#EDF4FA"
-                                   TextWrapping="Wrap" MaxHeight="40"
-                                   TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding Caption}"
-                                   FontSize="11" Foreground="#DADADA" Margin="0,6,0,0"
-                                   TextTrimming="CharacterEllipsis"/>
-                    </StackPanel>
+                            </Grid>
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="17,0,4,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding PreviewText}"
+                                       FontSize="14" Foreground="#EDF4FA"
+                                       TextWrapping="Wrap" MaxHeight="40"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding Caption}"
+                                       FontSize="11" Foreground="#DADADA" Margin="0,6,0,0"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 图片显示低分辨率大预览；粘贴时仍使用原始图片 -->
+                    <Grid Visibility="{Binding ImagePreviewVisibility}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Border Margin="10,10,10,0" Height="130" CornerRadius="8"
+                                Background="#181818" ClipToBounds="True">
+                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                        </Border>
+                        <TextBlock Grid.Row="1" Text="{Binding Caption}"
+                                   FontSize="11" Foreground="#DADADA"
+                                   Margin="15,7,15,10" TextTrimming="CharacterEllipsis"/>
+                    </Grid>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -123,7 +138,8 @@
                            FontFamily="Segoe MDL2 Assets" FontSize="13"
                            Foreground="#595959" VerticalAlignment="Center"
                            Margin="0,0,14,0" Visibility="Collapsed"
-                           Cursor="Hand" MouseLeftButtonUp="OnClearSearch"/>
+                           Cursor="Hand" MouseLeftButtonDown="OnClearButtonMouseDown"
+                           MouseLeftButtonUp="OnClearSearch"/>
             </Grid>
         </Border>
 

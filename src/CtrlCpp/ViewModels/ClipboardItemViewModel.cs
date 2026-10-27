@@ -38,6 +38,16 @@ public sealed class ClipboardItemViewModel : INotifyPropertyChanged
 
     public Visibility GlyphVisibility =>
         Kind is ItemKind.Image or ItemKind.Files ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>图片有可用缩略图时显示大预览，其他记录保持原有卡片布局。</summary>
+    public Visibility ImagePreviewVisibility =>
+        Kind == ItemKind.Image && Thumbnail != null ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility StandardItemVisibility =>
+        ImagePreviewVisibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+
+    public double CardHeight => ImagePreviewVisibility == Visibility.Visible ? 174 : 110;
+
     public string PreviewText => Kind switch
     {
         ItemKind.Text or ItemKind.Url => Item.FullText ?? Item.Preview,
@@ -71,7 +81,13 @@ public sealed class ClipboardItemViewModel : INotifyPropertyChanged
                     var bmp = new System.Windows.Media.Imaging.BitmapImage();
                     bmp.BeginInit();
                     bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                    bmp.DecodePixelWidth = 112;
+                    // 预览限制在 800 像素长边内，避免长截图产生超大位图
+                    if (Item.Width > Item.Height && Item.Width > 0)
+                        bmp.DecodePixelWidth = Math.Min(Item.Width, 800);
+                    else if (Item.Height > 0)
+                        bmp.DecodePixelHeight = Math.Min(Item.Height, 800);
+                    else
+                        bmp.DecodePixelWidth = 400;
                     bmp.UriSource = new Uri(AppServices.Media.ResolveFullPath(Item.MediaPath));
                     bmp.EndInit();
                     bmp.Freeze();
