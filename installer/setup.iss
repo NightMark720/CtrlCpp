@@ -2,7 +2,7 @@
 ; 编译：tools\innosetup\ISCC.exe installer\setup.iss
 
 #define MyAppName "CtrlC++ 剪贴板历史"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppExeName "CtrlCpp.exe"
 
 [Setup]
@@ -15,7 +15,7 @@ PrivilegesRequired=lowest
 DefaultDirName={autopf}\CtrlCpp
 DisableProgramGroupPage=yes
 OutputDir=.
-OutputBaseFilename=CtrlCpp-Setup-1.0.0
+OutputBaseFilename=CtrlCpp-Setup-1.1.0
 SetupIconFile=..\src\CtrlCpp\Assets\app.ico
 Compression=lzma2
 SolidCompression=yes

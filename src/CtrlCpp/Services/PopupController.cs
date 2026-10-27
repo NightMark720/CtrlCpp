@@ -41,6 +41,7 @@ public sealed class PopupController
         _window.PrepareShow();
         _window.Show();
         _window.Activate();
+        _window.PositionAfterShow();
         // 延迟解除抑制，避免任务栏按钮等抢占焦点导致立即关闭
         Task.Delay(300).ContinueWith(_ => _window.Dispatcher.BeginInvoke(() =>
         {

@@ -50,6 +50,17 @@ public partial class HistoryPopupWindow : Window
         };
     }
 
+    /// <summary>窗口显示并完成尺寸测量后定位；拖动后高度不变再次打开也能正确定位。</summary>
+    public void PositionAfterShow()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!_needPosition || !IsVisible) return;
+            _needPosition = false;
+            PositionNearCursor();
+        }, DispatcherPriority.Render);
+    }
+
     private void OnHistoryChanged() =>
         Dispatcher.BeginInvoke(() =>
         {
@@ -97,6 +108,8 @@ public partial class HistoryPopupWindow : Window
         UpdateEmptyState();
         if (List.SelectedIndex < 0 && _vm.Items.Count > 0) List.SelectedIndex = 0;
     }
+
+    private void OnClearButtonMouseDown(object sender, MouseButtonEventArgs e) => e.Handled = true;
 
     private void OnClearSearch(object sender, MouseButtonEventArgs e)
     {
@@ -199,6 +212,30 @@ public partial class HistoryPopupWindow : Window
     }
 
     private void OnMenuClosed(object sender, RoutedEventArgs e) => Controller.SuppressClose = false;
+
+    private void OnDragAreaMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || e.OriginalSource is not DependencyObject source) return;
+        // 保留列表点击、文本编辑和滚动条的原生行为；其余空白区域均可拖动窗口
+        if (source == ClearBtn ||
+            ItemsControl.ContainerFromElement(List, source) != null ||
+            FindAncestor<TextBoxBase>(source) != null ||
+            FindAncestor<ScrollBar>(source) != null) return;
+
+        _needPosition = false;
+        try { DragMove(); }
+        catch (InvalidOperationException) { /* 鼠标已松开时无需拖动 */ }
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? source) where T : DependencyObject
+    {
+        while (source != null)
+        {
+            if (source is T match) return match;
+            source = System.Windows.Media.VisualTreeHelper.GetParent(source);
+        }
+        return null;
+    }
 
     /// <summary>定位到鼠标附近（物理像素，限制在显示器工作区内）。</summary>
     private void PositionNearCursor()

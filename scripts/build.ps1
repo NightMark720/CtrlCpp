@@ -9,7 +9,7 @@ if (-not (Test-Path $dotnet)) { $dotnet = 'dotnet' }
     -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
-    -p:EnableCompressionInSingleFile=true `
+    -p:EnableCompressionInSingleFile=false `
     -p:DebugType=none `
     -o (Join-Path $root 'dist')
 if ($LASTEXITCODE -ne 0) { throw "publish 失败 ($LASTEXITCODE)" }
