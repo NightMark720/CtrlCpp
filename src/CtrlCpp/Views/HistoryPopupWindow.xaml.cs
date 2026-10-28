@@ -18,6 +18,11 @@ public partial class HistoryPopupWindow : Window
     public PopupController Controller { get; }
     private readonly HistoryViewModel _vm = new();
     private readonly DispatcherTimer _timeTimer;
+    private bool _wheelAnimating;
+    private ScrollViewer? _listScrollViewer;
+    private double _wheelFrom;
+    private double _wheelTarget;
+    private DateTime _wheelStartedAt;
     private bool _needPosition;
 
     public HistoryPopupWindow(PopupController controller)
@@ -42,11 +47,14 @@ public partial class HistoryPopupWindow : Window
         PreviewKeyDown += OnPreviewKeyDown;
         _timeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _timeTimer.Tick += (_, _) => _vm.RefreshTimes();
+        List.PreviewMouseWheel += OnListPreviewMouseWheel;
+        List.PreviewMouseLeftButtonDown += (_, _) => StopWheelAnimation();
         AppServices.HistoryChanged += OnHistoryChanged;
         Closed += (_, _) =>
         {
             AppServices.HistoryChanged -= OnHistoryChanged;
             _timeTimer.Stop();
+            StopWheelAnimation();
         };
     }
 
@@ -64,6 +72,7 @@ public partial class HistoryPopupWindow : Window
     private void OnHistoryChanged() =>
         Dispatcher.BeginInvoke(() =>
         {
+            StopWheelAnimation();
             _vm.Reload();
             UpdateEmptyState();
         });
@@ -72,6 +81,7 @@ public partial class HistoryPopupWindow : Window
     public void PrepareShow()
     {
         _needPosition = true;
+        StopWheelAnimation();
         SearchBox.Text = "";
         SearchPlaceholder.Visibility = Visibility.Visible;
         ClearBtn.Visibility = Visibility.Collapsed;
@@ -101,6 +111,7 @@ public partial class HistoryPopupWindow : Window
 
     private void OnSearchChanged(object sender, TextChangedEventArgs e)
     {
+        StopWheelAnimation();
         var empty = string.IsNullOrEmpty(SearchBox.Text);
         SearchPlaceholder.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
         ClearBtn.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
@@ -119,6 +130,8 @@ public partial class HistoryPopupWindow : Window
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key is Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End)
+            StopWheelAnimation();
         switch (e.Key)
         {
             case Key.Escape:
@@ -153,6 +166,75 @@ public partial class HistoryPopupWindow : Window
         if (idx < 0 || idx >= _vm.Items.Count) return;
         List.SelectedIndex = idx;
         List.ScrollIntoView(List.SelectedItem);
+    }
+
+    private void OnListPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        var scroller = GetListScrollViewer();
+        if (scroller == null || scroller.ScrollableHeight <= 0) return;
+        e.Handled = true;
+
+        if (!_wheelAnimating) _wheelTarget = scroller.VerticalOffset;
+        _wheelTarget = Math.Clamp(_wheelTarget + e.Delta * 0.75, 0, scroller.ScrollableHeight);
+        _wheelFrom = scroller.VerticalOffset;
+        _wheelStartedAt = DateTime.UtcNow;
+
+        if (Math.Abs(_wheelTarget - _wheelFrom) < 0.5)
+        {
+            StopWheelAnimation();
+            scroller.ScrollToVerticalOffset(_wheelTarget);
+            return;
+        }
+        StartWheelAnimation();
+    }
+
+    private void StartWheelAnimation()
+    {
+        if (_wheelAnimating) return;
+        _wheelAnimating = true;
+        System.Windows.Media.CompositionTarget.Rendering += OnWheelRendering;
+    }
+
+    private void StopWheelAnimation()
+    {
+        if (!_wheelAnimating) return;
+        _wheelAnimating = false;
+        System.Windows.Media.CompositionTarget.Rendering -= OnWheelRendering;
+    }
+
+    private void OnWheelRendering(object? sender, EventArgs e)
+    {
+        var scroller = GetListScrollViewer();
+        if (scroller == null)
+        {
+            StopWheelAnimation();
+            return;
+        }
+        // 跟随渲染帧更新并缩短缓动，避免定时器与屏幕刷新错位产生拖影
+        var progress = Math.Min(1, (DateTime.UtcNow - _wheelStartedAt).TotalMilliseconds / 130);
+        var eased = 1 - Math.Pow(1 - progress, 2);
+        scroller.ScrollToVerticalOffset(_wheelFrom + (_wheelTarget - _wheelFrom) * eased);
+        if (progress >= 1) StopWheelAnimation();
+    }
+
+    private ScrollViewer? GetListScrollViewer()
+    {
+        if (_listScrollViewer != null) return _listScrollViewer;
+        _listScrollViewer = FindDescendant<ScrollViewer>(List);
+        return _listScrollViewer;
+    }
+
+    private static T? FindDescendant<T>(DependencyObject parent) where T : DependencyObject
+    {
+        var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < count; i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T match) return match;
+            var result = FindDescendant<T>(child);
+            if (result != null) return result;
+        }
+        return null;
     }
 
     private void OnListClick(object sender, MouseButtonEventArgs e)
