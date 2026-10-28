@@ -16,6 +16,11 @@ public sealed class ClipboardItemViewModel : INotifyPropertyChanged
     private ImageSource? _fileIcon;
     private bool _fileIconLoaded;
 
+    private static readonly HashSet<string> PreviewImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png", ".bmp", ".gif",
+    };
+
     public ClipboardItem Item { get; }
 
     public ClipboardItemViewModel(ClipboardItem item) => Item = item;
@@ -39,9 +44,9 @@ public sealed class ClipboardItemViewModel : INotifyPropertyChanged
     public Visibility GlyphVisibility =>
         Kind is ItemKind.Image or ItemKind.Files ? Visibility.Visible : Visibility.Collapsed;
 
-    /// <summary>图片有可用缩略图时显示大预览，其他记录保持原有卡片布局。</summary>
+    /// <summary>剪贴板图片或图片文件有可用缩略图时显示大预览。</summary>
     public Visibility ImagePreviewVisibility =>
-        Kind == ItemKind.Image && Thumbnail != null ? Visibility.Visible : Visibility.Collapsed;
+        Thumbnail != null ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility StandardItemVisibility =>
         ImagePreviewVisibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
@@ -61,10 +66,25 @@ public sealed class ClipboardItemViewModel : INotifyPropertyChanged
         get
         {
             var time = FormatRelative(Item.LastSeenAt);
-            return Kind == ItemKind.Image
-                ? $"{Item.Width}×{Item.Height} · {FormatUtil.FormatSize(Item.ByteSize)} · {time}"
-                : $"来源 {PrettyApp(Item.SourceApp)} · {time}";
+            if (Kind == ItemKind.Image)
+                return $"{Item.Width}×{Item.Height} · {FormatUtil.FormatSize(Item.ByteSize)} · {time}";
+            if (Kind == ItemKind.Files && ImagePreviewVisibility == Visibility.Visible)
+                return $"{Item.Preview} · {time}";
+            return $"来源 {PrettyApp(Item.SourceApp)} · {time}";
         }
+    }
+
+    private string? GetPreviewSourcePath()
+    {
+        if (Kind == ItemKind.Image && Item.MediaPath != null)
+            return AppServices.Media.ResolveFullPath(Item.MediaPath);
+        if (Kind != ItemKind.Files) return null;
+        try
+        {
+            return PasteService.ParseFiles(Item.FileListJson)
+                .FirstOrDefault(path => PreviewImageExtensions.Contains(Path.GetExtension(path)) && File.Exists(path));
+        }
+        catch { return null; }
     }
 
     /// <summary>图片缩略图（解码失败返回 null，模板里显示类型图标）。</summary>
@@ -74,26 +94,23 @@ public sealed class ClipboardItemViewModel : INotifyPropertyChanged
         {
             if (_thumbnailLoaded) return _thumbnail;
             _thumbnailLoaded = true;
-            if (Kind == ItemKind.Image && Item.MediaPath != null)
+            var sourcePath = GetPreviewSourcePath();
+            if (sourcePath != null)
             {
                 try
                 {
                     var bmp = new System.Windows.Media.Imaging.BitmapImage();
                     bmp.BeginInit();
                     bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                    // 预览限制在 800 像素长边内，避免长截图产生超大位图
-                    if (Item.Width > Item.Height && Item.Width > 0)
-                        bmp.DecodePixelWidth = Math.Min(Item.Width, 800);
-                    else if (Item.Height > 0)
-                        bmp.DecodePixelHeight = Math.Min(Item.Height, 800);
-                    else
-                        bmp.DecodePixelWidth = 400;
-                    bmp.UriSource = new Uri(AppServices.Media.ResolveFullPath(Item.MediaPath));
+                    // 两个方向同时限制，保持宽高比并避免长图占用大量内存
+                    bmp.DecodePixelWidth = 800;
+                    bmp.DecodePixelHeight = 800;
+                    bmp.UriSource = new Uri(sourcePath);
                     bmp.EndInit();
                     bmp.Freeze();
                     _thumbnail = bmp;
                 }
-                catch { /* 媒体可能已被清理 */ }
+                catch { /* 媒体或原文件可能已被清理，或格式不受支持 */ }
             }
             return _thumbnail;
         }
