@@ -51,7 +51,7 @@ if ($null -eq $list) { throw 'List not found' }
 $scroll = $list.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
 $p0 = $scroll.Current.VerticalScrollPercent
 Write-Host "Before: $p0"
-[SmoothScrollNative]::Wheel(-120)
+[SmoothScrollNative]::Wheel(120)
 Start-Sleep -Milliseconds 35
 $p1 = $scroll.Current.VerticalScrollPercent
 Write-Host "During 35ms: $p1"

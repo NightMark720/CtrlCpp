@@ -43,7 +43,7 @@ $y = $before.Bottom - 12
 [DragTestNative]::SetCursorPos($x, $y) | Out-Null
 [DragTestNative]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero)
 for ($i = 1; $i -le 12; $i++) {
-    [DragTestNative]::SetCursorPos($x + [int](220 * $i / 12), $y + [int](140 * $i / 12)) | Out-Null
+    [DragTestNative]::SetCursorPos($x + [int](220 * $i / 12), $y - [int](140 * $i / 12)) | Out-Null
     Start-Sleep -Milliseconds 30
 }
 [DragTestNative]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
@@ -53,7 +53,7 @@ $after = New-Object DragTestNative+RECT
 Write-Host "After drag: $($after.Left),$($after.Top) - $($after.Right),$($after.Bottom)"
 $dx = $after.Left - $before.Left
 $dy = $after.Top - $before.Top
-if ([Math]::Abs($dx - 220) -gt 8 -or [Math]::Abs($dy - 140) -gt 8) { throw "Drag did not move as expected: $dx,$dy" }
+if ([Math]::Abs($dx - 220) -gt 8 -or [Math]::Abs($dy + 140) -gt 8) { throw "Drag did not move as expected: $dx,$dy" }
 Write-Host 'Drag test PASS'
 & powershell -NoProfile -ExecutionPolicy Bypass -File "$root\scripts\dev\Screenshot.ps1" -Path "$env:TEMP\ctrlcpp-after-drag.png" | Out-Null
 

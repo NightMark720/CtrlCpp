@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -175,7 +175,10 @@ public partial class HistoryPopupWindow : Window
         e.Handled = true;
 
         if (!_wheelAnimating) _wheelTarget = scroller.VerticalOffset;
-        _wheelTarget = Math.Clamp(_wheelTarget + e.Delta * 0.75, 0, scroller.ScrollableHeight);
+        // 与 WPF 原生 ScrollViewer 保持一致：e.Delta 为负时内容向下滚（偏移增加）。
+        // Windows 已在驱动层按系统"反转滚动方向"设置翻转滚轮消息，这里直接沿用即可，
+        // 额外再翻转会造成双重反转。
+        _wheelTarget = Math.Clamp(_wheelTarget - e.Delta * 0.4, 0, scroller.ScrollableHeight);
         _wheelFrom = scroller.VerticalOffset;
         _wheelStartedAt = DateTime.UtcNow;
 
