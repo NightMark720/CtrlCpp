@@ -323,6 +323,8 @@ public partial class App : Application
         _settingsWindow.Show();
     }
 
+    internal void ExitForUpdate() => ExitApp();
+
     private void ExitApp()
     {
         if (_exiting) return;

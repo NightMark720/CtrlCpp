@@ -16,6 +16,8 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
     private readonly ObservableCollection<ExcludedRow> _excluded = new();
     private bool _loaded;
     private bool _hotkeyRecording;
+    private bool _updateBusy;
+    private UpdateRelease? _latestUpdate;
 
     public SettingsWindow()
     {
@@ -151,7 +153,81 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         catch (Exception ex) { LogService.LogEx("清空历史失败", ex); }
     }
 
+    private static string DescribeError(Exception ex)
+    {
+        var inner = ex.InnerException;
+        var message = inner?.Message ?? ex.Message;
+        if (message.Contains("SSL", StringComparison.OrdinalIgnoreCase))
+            message = "网络连接不安全或被拦截，请检查网络后重试";
+        else if (message.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+                 || message.Contains("连接超时", StringComparison.OrdinalIgnoreCase))
+            message = "连接 GitHub 超时，请检查网络后重试";
+        return message;
+    }
+
     private void OnClose(object sender, RoutedEventArgs e) => Close();
+
+    private async void OnCheckUpdate(object sender, RoutedEventArgs e)
+    {
+        if (_updateBusy) return;
+        _updateBusy = true;
+        CheckUpdateButton.IsEnabled = false;
+        DownloadUpdateButton.Visibility = Visibility.Collapsed;
+        _latestUpdate = null;
+        UpdateStatusText.Text = "正在检查 GitHub 最新版本…";
+        try
+        {
+            var latest = await UpdateService.CheckLatestAsync();
+            if (latest == null)
+            {
+                UpdateStatusText.Text = $"当前已是最新版本（v{UpdateService.CurrentVersion.ToString(3)}）";
+                return;
+            }
+            _latestUpdate = latest;
+            UpdateStatusText.Text = $"发现新版本 {latest.Tag}，当前版本 v{UpdateService.CurrentVersion.ToString(3)}";
+            DownloadUpdateButton.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            LogService.LogEx("检查更新失败", ex);
+            UpdateStatusText.Text = "检查失败：" + DescribeError(ex);
+        }
+        finally
+        {
+            _updateBusy = false;
+            CheckUpdateButton.IsEnabled = true;
+        }
+    }
+
+    private async void OnDownloadUpdate(object sender, RoutedEventArgs e)
+    {
+        if (_updateBusy || _latestUpdate == null) return;
+        var confirm = MessageBox.Show(this,
+            $"将下载并安装 {_latestUpdate.Tag}。程序会自动退出、更新并重新启动，历史记录和设置会保留。是否继续？",
+            "下载并安装更新", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes);
+        if (confirm != MessageBoxResult.Yes) return;
+
+        _updateBusy = true;
+        CheckUpdateButton.IsEnabled = false;
+        DownloadUpdateButton.IsEnabled = false;
+        try
+        {
+            var progress = new Progress<int>(percent => UpdateStatusText.Text = $"正在下载更新… {percent}%");
+            var newFile = await UpdateService.DownloadAsync(_latestUpdate, progress);
+            UpdateStatusText.Text = "下载和校验完成，正在安装并重启…";
+            UpdateService.StartApplyUpdate(newFile);
+            await Task.Delay(500);
+            if (Application.Current is App app) app.ExitForUpdate();
+        }
+        catch (Exception ex)
+        {
+            LogService.LogEx("下载或安装更新失败", ex);
+            UpdateStatusText.Text = "更新失败：" + ex.Message;
+            _updateBusy = false;
+            CheckUpdateButton.IsEnabled = true;
+            DownloadUpdateButton.IsEnabled = true;
+        }
+    }
 
     // ---------- 快捷键录制 ----------
 

@@ -4,6 +4,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CtrlCpp.Models;
 
 namespace CtrlCpp.Services;
@@ -121,7 +123,15 @@ public sealed class ClipboardReader : IDisposable
                 if (dao.GetData("PNG") is MemoryStream ms)
                 {
                     var bytes = ms.ToArray();
-                    if (bytes.Length <= MaxImageBytes && LooksLikePng(bytes)) return bytes;
+                    if (bytes.Length <= MaxImageBytes && LooksLikePng(bytes))
+                    {
+                        // 某些截图工具的 PNG 透明度全为 0，但 RGB 数据有效
+                        using var decodeMs = new MemoryStream(bytes, false);
+                        var frame = BitmapFrame.Create(decodeMs,
+                            BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                        var opaque = ForceOpaqueWhenAllAlphaZero(frame);
+                        return opaque == null ? bytes : EncodePng(opaque);
+                    }
                 }
             }
             catch { /* 回退到 DIB */ }
@@ -131,18 +141,46 @@ public sealed class ClipboardReader : IDisposable
             // 基于已取的快照解码，避免回退路径重读活动剪贴板造成内容与来源错配
             if (dao.GetData(DataFormats.Bitmap) is not System.Windows.Media.Imaging.BitmapSource src || src == null) return null;
             if (src.PixelWidth > 8192 || src.PixelHeight > 8192) return null;
-            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
-            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(src));
-            using var outMs = new MemoryStream();
-            encoder.Save(outMs);
-            var png = outMs.ToArray();
-            return png.Length <= MaxImageBytes ? png : null;
+            var normalized = ForceOpaqueWhenAllAlphaZero(src) ?? src;
+            return EncodePng(normalized);
         }
         catch (Exception ex)
         {
             LogService.LogEx("读取剪贴板图片失败", ex);
             return null;
         }
+    }
+
+    private static byte[]? EncodePng(BitmapSource source)
+    {
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(source));
+        using var outMs = new MemoryStream();
+        encoder.Save(outMs);
+        var png = outMs.ToArray();
+        return png.Length <= MaxImageBytes ? png : null;
+    }
+
+    /// <summary>仅在整图 alpha 都为 0 时改为不透明，保留 RGB；正常透明图片不变。</summary>
+    private static BitmapSource? ForceOpaqueWhenAllAlphaZero(BitmapSource source)
+    {
+        var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+        var width = converted.PixelWidth;
+        var height = converted.PixelHeight;
+        var rawSize = (long)width * height * 4;
+        if (rawSize <= 0 || rawSize > 128 * 1024 * 1024) return null;
+
+        var stride = width * 4;
+        var pixels = new byte[(int)rawSize];
+        converted.CopyPixels(pixels, stride, 0);
+        for (var i = 3; i < pixels.Length; i += 4)
+            if (pixels[i] != 0) return null;
+
+        for (var i = 3; i < pixels.Length; i += 4) pixels[i] = 255;
+        var opaque = BitmapSource.Create(width, height, converted.DpiX, converted.DpiY,
+            PixelFormats.Bgra32, null, pixels, stride);
+        opaque.Freeze();
+        return opaque;
     }
 
     private static bool LooksLikePng(byte[] bytes) =>
