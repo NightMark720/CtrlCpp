@@ -170,7 +170,7 @@ public static class UpdateService
             throw new InvalidDataException("文件校验失败，已取消更新");
 
         var fileVersion = FileVersionInfo.GetVersionInfo(path).FileVersion;
-        if (fileVersion == null || ParseVersion(fileVersion) != expectedVersion)
+        if (fileVersion == null || ParseVersion(fileVersion) != NormalizeVersion(expectedVersion))
             throw new InvalidDataException("下载文件版本不一致");
     }
 
@@ -205,6 +205,7 @@ public static class UpdateService
         _ = Process.Start(startInfo) ?? throw new InvalidOperationException("无法启动更新程序");
     }
 
+    /// <summary>解析版本号并统一为 4 段（1.4 与 1.4.0.0 视为相同，避免比较失败）。</summary>
     private static Version ParseVersion(string text)
     {
         var value = text.Trim().TrimStart('v', 'V');
